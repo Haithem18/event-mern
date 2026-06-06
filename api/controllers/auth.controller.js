@@ -4,7 +4,7 @@ import { errorHandler } from "../utils/error.js";
 import jwt from "jsonwebtoken";
 
 /* =========================
-   GENERATE TOKEN (helper)
+   GENERATE TOKEN
 ========================= */
 const generateToken = (userId) => {
   return jwt.sign(
@@ -12,6 +12,17 @@ const generateToken = (userId) => {
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
+};
+
+/* =========================
+   COOKIE OPTIONS
+========================= */
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  path: "/",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
 /* =========================
@@ -31,14 +42,17 @@ export const signup = async (req, res, next) => {
 
     await newUser.save();
 
-    res.status(201).json("User created successfully");
+    res.status(201).json({
+      success: true,
+      message: "User created successfully",
+    });
   } catch (error) {
     next(error);
   }
 };
 
 /* =========================
-   SIGNIN (FIXED COOKIE FLOW)
+   SIGNIN
 ========================= */
 export const signin = async (req, res, next) => {
   const { email, password } = req.body;
@@ -46,40 +60,40 @@ export const signin = async (req, res, next) => {
   try {
     const validUser = await User.findOne({ email });
 
-    if (!validUser)
+    if (!validUser) {
       return next(errorHandler(404, "User not found"));
+    }
 
     const validPassword = bcryptjs.compareSync(
       password,
       validUser.password
     );
 
-    if (!validPassword)
+    if (!validPassword) {
       return next(errorHandler(401, "Invalid credentials"));
+    }
 
     const token = generateToken(validUser._id);
 
     const { password: pass, ...userData } = validUser._doc;
 
-    res.cookie("access_token", token, {
-      httpOnly: true,
-      secure: false,        // localhost
-      sameSite: "lax",      // REQUIRED for localhost frontend/backend
-      path: "/",            // IMPORTANT FIX
-    });
-
-    res.status(200).json(userData);
+    res
+      .cookie("access_token", token, cookieOptions)
+      .status(200)
+      .json(userData);
   } catch (error) {
     next(error);
   }
 };
 
 /* =========================
-   GOOGLE LOGIN (FIXED)
+   GOOGLE LOGIN
 ========================= */
 export const google = async (req, res, next) => {
   try {
-    let user = await User.findOne({ email: req.body.email });
+    let user = await User.findOne({
+      email: req.body.email,
+    });
 
     if (user) {
       const token = generateToken(user._id);
@@ -87,12 +101,7 @@ export const google = async (req, res, next) => {
       const { password, ...rest } = user._doc;
 
       return res
-        .cookie("access_token", token, {
-          httpOnly: true,
-          secure: false,
-          sameSite: "lax",
-          path: "/",
-        })
+        .cookie("access_token", token, cookieOptions)
         .status(200)
         .json(rest);
     }
@@ -101,11 +110,17 @@ export const google = async (req, res, next) => {
       Math.random().toString(36).slice(-8) +
       Math.random().toString(36).slice(-8);
 
-    const hashedPassword = bcryptjs.hashSync(generatedPassword, 10);
+    const hashedPassword = bcryptjs.hashSync(
+      generatedPassword,
+      10
+    );
 
     const newUser = new User({
       username:
-        req.body.name.split(" ").join("").toLowerCase() +
+        req.body.name
+          .split(" ")
+          .join("")
+          .toLowerCase() +
         Math.random().toString(36).slice(-4),
 
       email: req.body.email,
@@ -119,14 +134,10 @@ export const google = async (req, res, next) => {
 
     const { password, ...rest } = newUser._doc;
 
-    res.cookie("access_token", token, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "lax",
-      path: "/",
-    });
-
-    res.status(200).json(rest);
+    res
+      .cookie("access_token", token, cookieOptions)
+      .status(200)
+      .json(rest);
   } catch (error) {
     next(error);
   }
@@ -139,9 +150,18 @@ export const signOut = async (req, res, next) => {
   try {
     res.clearCookie("access_token", {
       path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite:
+        process.env.NODE_ENV === "production"
+          ? "none"
+          : "lax",
     });
 
-    res.status(200).json("User logged out");
+    res.status(200).json({
+      success: true,
+      message: "User logged out",
+    });
   } catch (error) {
     next(error);
   }

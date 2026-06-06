@@ -14,13 +14,22 @@ dotenv.config();
 const app = express();
 
 /* =========================
-   CORS (PRODUCTION READY)
+   CORS
 ========================= */
 app.use(
   cors({
     origin: process.env.CLIENT_URL,
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.options(
+  "*",
+  cors({
+    origin: process.env.CLIENT_URL,
+    credentials: true,
   })
 );
 
@@ -35,8 +44,19 @@ app.use(cookieParser());
 ========================= */
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("connected to MongoDB"))
-  .catch((err) => console.log("Mongo Error:", err));
+  .then(() => {
+    console.log("✅ Connected to MongoDB");
+  })
+  .catch((err) => {
+    console.log("❌ MongoDB Error:", err);
+  });
+
+/* =========================
+   TEST ROUTE
+========================= */
+app.get("/", (req, res) => {
+  res.send("API is running...");
+});
 
 /* =========================
    ROUTES
@@ -50,6 +70,8 @@ app.use("/api/admin", adminRoutes);
    ERROR HANDLER
 ========================= */
 app.use((err, req, res, next) => {
+  console.error(err);
+
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || "Server Error",
@@ -57,10 +79,10 @@ app.use((err, req, res, next) => {
 });
 
 /* =========================
-   START SERVER (FIXED)
+   SERVER
 ========================= */
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("server running on port", PORT);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
